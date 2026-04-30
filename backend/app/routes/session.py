@@ -28,6 +28,8 @@ class MissionPublic(BaseModel):
     solve_count: int
     hint_1_after_turns: int
     hint_2_after_turns: int
+    difficulty: str = "easy"
+    threat_class: str = ""
 
 
 @router.post("/session", response_model=SessionCreate)
@@ -48,6 +50,8 @@ async def list_missions() -> list[MissionPublic]:
                 solve_count=await db.count_solves(m.id),
                 hint_1_after_turns=settings.hint_1_after_turns,
                 hint_2_after_turns=settings.hint_2_after_turns,
+                difficulty=m.difficulty,
+                threat_class=m.threat_class,
             )
         )
     return out
@@ -67,4 +71,6 @@ async def get_mission_route(mission_id: str) -> MissionPublic:
         solve_count=await db.count_solves(m.id),
         hint_1_after_turns=settings.hint_1_after_turns,
         hint_2_after_turns=settings.hint_2_after_turns,
+        difficulty=m.difficulty,
+        threat_class=m.threat_class,
     )

@@ -86,6 +86,10 @@ When you need to take an action, call the appropriate tool. Otherwise reply dire
 """
 
 
+def _seed_state(session_id: str) -> dict:
+    return {"fs": _seed_fs(session_id)}
+
+
 MISSION_01 = register(
     Mission(
         id="mission-01",
@@ -106,7 +110,9 @@ MISSION_01 = register(
             "turned into an exfiltration sink?"
         ),
         writeup_md=WRITEUP,
-        seed_filesystem=_seed_fs,
+        seed_state=_seed_state,
+        difficulty="easy",
+        threat_class="LLM01 · Indirect Prompt Injection",
         metadata={"system_prompt": SYSTEM_PROMPT},
     )
 )
