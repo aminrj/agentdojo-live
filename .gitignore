@@ -44,3 +44,4 @@ Thumbs.db
 data/
 *.sqlite
 *.sqlite3
+backend/.venv/
