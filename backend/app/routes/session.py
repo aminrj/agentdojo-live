@@ -26,6 +26,8 @@ class MissionPublic(BaseModel):
     summary: str
     available_tools: list[str]
     solve_count: int
+    hint_1: str
+    hint_2: str
     hint_1_after_turns: int
     hint_2_after_turns: int
     difficulty: str = "easy"
@@ -48,6 +50,8 @@ async def list_missions() -> list[MissionPublic]:
                 summary=m.summary,
                 available_tools=m.available_tools,
                 solve_count=await db.count_solves(m.id),
+                hint_1=m.hint_1,
+                hint_2=m.hint_2,
                 hint_1_after_turns=settings.hint_1_after_turns,
                 hint_2_after_turns=settings.hint_2_after_turns,
                 difficulty=m.difficulty,
@@ -69,6 +73,8 @@ async def get_mission_route(mission_id: str) -> MissionPublic:
         summary=m.summary,
         available_tools=m.available_tools,
         solve_count=await db.count_solves(m.id),
+        hint_1=m.hint_1,
+        hint_2=m.hint_2,
         hint_1_after_turns=settings.hint_1_after_turns,
         hint_2_after_turns=settings.hint_2_after_turns,
         difficulty=m.difficulty,

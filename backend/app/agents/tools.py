@@ -278,6 +278,18 @@ async def dispatch(
     session_id: str,
     mission_id: str,
 ) -> str:
+    """Route a tool call to the right handler.
+
+    All tools take their data from the per-session ``state`` dict (mutating
+    it in place) and return a string the agent will see as the tool result.
+    State buckets used by the bundled tools:
+
+    * ``fs`` — filesystem (mission 01)
+    * ``calendar`` — list of events (mission 03)
+    * ``transfers`` — record of every ``transfer_funds`` call (mission 03)
+    * ``registered_tools`` — name → description (mission 04)
+    * ``database`` — query name → canned result (mission 04)
+    """
     fs = state.setdefault("fs", {})
     calendar = state.setdefault("calendar", [])
     registered = state.setdefault("registered_tools", {})

@@ -2,7 +2,20 @@
 
 ## Overview
 
-agentdojo-live is a thin SPA in front of a tool-calling LLM agent harness. The visitor's browser opens an SSE stream to the backend's `/api/chat/stream` route. The backend runs the agent loop against a local Ollama instance and forwards every event (assistant text, tool call, tool result) back to the browser as a Server-Sent Event. The agent's `send_email` tool is wired to a built-in exfil listener, which detects the per-session canary and records a solve in Postgres.
+agentdojo-live is a thin SPA in front of a tool-calling LLM agent harness.
+The visitor's browser opens an SSE stream to the backend's
+`/api/chat/stream` route. The backend runs the per-mission agent loop
+against a local Ollama instance (or a scripted mock for CI) and forwards
+every event — assistant text, tool call, tool result — back to the
+browser as a Server-Sent Event.
+
+Each mission ships a pluggable `solve_check(event, state, session_id, mission)`
+callback that the loop invokes after every event; when it returns `True`,
+the loop records the solve in Postgres and emits a `{"type":"solve"}` SSE
+frame so the writeup overlay opens immediately. Mission 01 also keeps the
+legacy egress detector at `/api/exfil/ingest`, which is what the agent's
+`send_email` tool POSTs to — it checks for the per-session canary in an
+external email and records the solve through the same idempotent path.
 
 ## Component diagram
 
@@ -11,46 +24,76 @@ visitor browser ──► /api/chat/stream  (SSE)
                        │
                        ▼
               ┌─────────────────────┐
-              │  agent loop         │ ◄──── Redis (per-session state, fs)
+              │  agent loop         │ ◄──── Redis (per-session state)
               │  (app/agents/loop)  │
-              └────────┬────────────┘
-                       │ tool calls
-                       ▼
-              ┌─────────────────────┐
-              │  tools dispatcher   │
-              └──┬───────────────┬──┘
-                 │               │
-       read_file / list /…   send_email
-                 │               │
-                 ▼               ▼
-          (in-mem fs)      /api/exfil/ingest ──► Postgres (solves)
-                                                   ▲
-                                                   │
-                                          /api/solve/{m}/{s}
+              │  - filters tools    │
+              │    by mission       │
+              │  - runs solve_check │ ──────► Postgres (solves) ─┐
+              └────────┬────────────┘                            │
+                       │ tool calls                                │
+                       ▼                                           │
+              ┌─────────────────────┐                            │
+              │  tools dispatcher   │  fs / calendar / registry / db
+              └─┬───────────────┬──┘                            │
+                │               │                                  │
+      ...benign tools...     send_email                                │
+                                │                                     │
+                                ▼                                     │
+                       /api/exfil/ingest ───────────────────────┘
+                       (mission 01 win)
+                                ▲
+                       /api/solve/{m}/{s}  (writeup unlock)
 ```
 
 ## Why these choices
 
-- **FastAPI + SSE**: the agent emits typed events (assistant text, tool call, tool result) one-way to the browser. Native `EventSource` plus `sse_starlette.EventSourceResponse` solves the streaming problem in 50 lines.
-- **Hand-rolled tool-calling loop**: ~150 LOC, no LangChain. Full visibility for the side panel, full control over the message format, no version-skew risk.
-- **Mock LLM provider** (`LLM_PROVIDER=mock`): scripted deterministic agent that exercises the win-condition path. Used by tests and in CI where no GPU is available.
-- **Per-session state in Redis**: the v1 architecture diagram in the spec calls for a per-session Kubernetes pod. We deferred that. Redis with `sess:{session_id}:{mission_id}` keys gives us the same logical isolation at a fraction of the operational cost. Upgrade path: replace `redis_store` with a controller that creates a `Pod` per session and proxies tool dispatch over an internal RPC.
-- **Exfil listener inside the backend**: avoids a second deployable for v1. The listener is a separate router (`/api/exfil/ingest`) gated by a shared token (`EXFIL_LISTENER_TOKEN`). When the body matches the per-session canary AND the recipient is external, we mark the solve.
-- **Solve detection is canary-based**: every session gets a unique canary (`FLAG-CANARY-<session-prefix>`) embedded in the flagged document. The listener's check is a simple substring match. No regex, no parsing.
+- **FastAPI + SSE**: the agent emits typed events one-way to the browser.
+  Native `EventSource` plus `sse_starlette.EventSourceResponse` solves the
+  streaming problem in 50 lines.
+- **Hand-rolled tool-calling loop**: ~150 LOC, no LangChain. Full
+  visibility for the side panel, full control over the message format, no
+  version-skew risk.
+- **Mock LLM provider** (`LLM_PROVIDER=mock`): scripted deterministic
+  agent that drives each mission's exploit path via a per-mission trigger
+  word (`EXFIL` / `LEAK` / `DEPUTY` / `POISON`). Used by tests and CI
+  where no GPU is available.
+- **Per-session state in Redis**: the v1 architecture diagram in the spec
+  calls for a per-session Kubernetes pod. We deferred that. Redis with
+  `sess:{session_id}:{mission_id}` keys gives us the same logical
+  isolation at a fraction of the operational cost. Upgrade path: replace
+  `redis_store` with a controller that creates a `Pod` per session and
+  proxies tool dispatch over an internal RPC.
+- **Pluggable win-condition** (`Mission.solve_check`): each mission owns
+  its own win condition next to its code. The loop calls it after every
+  event and records the solve through the same idempotent
+  `db.record_solve` used by the exfil listener.
+- **Per-mission tool allow-list** (`Mission.available_tools`): the loop
+  filters the global schema list before calling the LLM, so an agent
+  cannot accidentally see tools meant for a different mission.
+- **Solve detection styles**: canary-based egress for Mission 01, in-loop
+  inspection of tool calls / state for Missions 02-04. Both write through
+  the same idempotent `db.record_solve(session_id, mission_id)`.
 
 ## Trust boundary
 
 - The browser is **untrusted**.
-- The agent's tool layer is **untrusted-by-design** — that is the playground's whole point. Tools must be safe to invoke with attacker-influenced arguments.
-- The exfil endpoint is **trusted** (token-gated) and is the only writer to the `solves` table.
-- The LLM is **untrusted**. The agent loop bounds tool hops (`MAX_TOOL_HOPS = 8`) so a runaway model can't burn budget.
+- The agent's tool layer is **untrusted-by-design** — that is the
+  playground's whole point. Tools must be safe to invoke with
+  attacker-influenced arguments. State stays inside the per-session dict;
+  no host side effects.
+- The exfil endpoint is **trusted** (token-gated) and is one of two
+  writers to the `solves` table. The other is `loop._maybe_solve`, which
+  runs server-side and is reachable only via the agent loop.
+- The LLM is **untrusted**. The agent loop bounds tool hops
+  (`MAX_TOOL_HOPS = 8`) so a runaway model can't burn budget.
 
 ## Data lifecycle
 
-- Conversation history: Redis, TTL 2 hours.
+- Conversation history + tool state: Redis, TTL 2 hours.
 - Rate-limit counters: Redis, TTL 1 hour.
 - Solves: Postgres, retained.
-- Logs: stdout JSON. Capture upstream as desired. We do not persist raw IPs beyond the rate-limit bucket lifetime.
+- Logs: stdout JSON. Capture upstream as desired. We do not persist raw
+  IPs beyond the rate-limit bucket lifetime.
 
 ## Performance / scaling notes
 

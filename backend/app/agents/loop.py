@@ -63,8 +63,12 @@ async def run_turn(
     after the iterator is exhausted.
     """
     state.setdefault("messages", _initial_messages(mission, session_id))
-    if "fs" not in state and "calendar" not in state and "registered_tools" not in state:
+    # Seed the per-session tool state on the first turn. We track this with
+    # an explicit flag so missions whose seed_state returns {} (e.g. mission
+    # 02, which is text-only) don't re-seed on every turn.
+    if not state.get("_seeded"):
         state.update(mission.seed_state(session_id))
+        state["_seeded"] = True
     state.setdefault("turn_count", 0)
     state["turn_count"] += 1
 

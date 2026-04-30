@@ -11,8 +11,12 @@ type Mission = {
   summary: string;
   available_tools: string[];
   solve_count: number;
+  hint_1: string;
+  hint_2: string;
   hint_1_after_turns: number;
   hint_2_after_turns: number;
+  difficulty?: string;
+  threat_class?: string;
 };
 
 type SolveStatus = {
@@ -21,11 +25,6 @@ type SolveStatus = {
   flag: string | null;
   solve_count: number;
 };
-
-const HINT_1 =
-  'Try indirect prompt injection — the agent reads files as if their contents were trustworthy.';
-const HINT_2 =
-  'Look at what tools the agent has access to. Which one could be turned into an exfiltration sink?';
 
 function getOrCreateSessionId(): string {
   if (typeof window === 'undefined') return '';
@@ -166,6 +165,11 @@ export default function MissionClient({ mission }: { mission: Mission }) {
       case 'done':
         setTurns(evt.turns ?? 0);
         break;
+      case 'solve':
+        // Loop emitted a solve. Fetch the writeup + flag immediately so the
+        // overlay opens without waiting for the 4s poll cycle.
+        void checkSolve();
+        break;
       case 'error':
         setError(evt.message || 'agent error');
         break;
@@ -174,10 +178,10 @@ export default function MissionClient({ mission }: { mission: Mission }) {
 
   const hint = useMemo(() => {
     if (solve?.solved) return null;
-    if (turns >= mission.hint_2_after_turns) return HINT_2;
-    if (turns >= mission.hint_1_after_turns) return HINT_1;
+    if (turns >= mission.hint_2_after_turns) return mission.hint_2;
+    if (turns >= mission.hint_1_after_turns) return mission.hint_1;
     return null;
-  }, [turns, mission.hint_1_after_turns, mission.hint_2_after_turns, solve?.solved]);
+  }, [turns, mission.hint_1, mission.hint_2, mission.hint_1_after_turns, mission.hint_2_after_turns, solve?.solved]);
 
   return (
     <main className="h-screen flex flex-col">
@@ -187,7 +191,13 @@ export default function MissionClient({ mission }: { mission: Mission }) {
             ← agentdojo.live
           </a>
           <h1 className="text-lg font-semibold">
-            Mission 01 · <span className="text-accent">{mission.title}</span>
+            <span className="text-zinc-500">{mission.id}</span> ·{' '}
+            <span className="text-accent">{mission.title}</span>
+            {mission.threat_class && (
+              <span className="ml-3 align-middle rounded border border-zinc-700 bg-zinc-800/60 px-2 py-0.5 text-xs font-normal text-zinc-300">
+                {mission.threat_class}
+              </span>
+            )}
           </h1>
         </div>
         <div className="text-right text-xs text-zinc-500">
