@@ -45,3 +45,5 @@ data/
 *.sqlite
 *.sqlite3
 backend/.venv/
+frontend/node_modules/
+frontend/.next/
