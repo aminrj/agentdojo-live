@@ -1,0 +1,58 @@
+# Default values. Override in values.prod.yaml.
+
+image:
+  registry: ghcr.io/aminrj
+  pullPolicy: IfNotPresent
+  tag: latest
+
+frontend:
+  replicas: 1
+  image: agentdojo-live-frontend
+  resources:
+    requests: { cpu: 50m,  memory: 96Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+  env:
+    NEXT_PUBLIC_BACKEND_URL: ""  # leave empty when same-origin via ingress
+
+backend:
+  replicas: 1
+  image: agentdojo-live-backend
+  resources:
+    requests: { cpu: 200m, memory: 256Mi }
+    limits:   { cpu: 1,    memory: 1Gi }
+  env:
+    LLM_PROVIDER: "ollama"
+    OLLAMA_BASE_URL: "http://host.docker.internal:11434/v1"
+    OLLAMA_MODEL: "qwen2.5:7b-instruct"
+    RATE_LIMIT_PER_HOUR: "50"
+    LOG_LEVEL: "INFO"
+  secrets:
+    EXFIL_LISTENER_TOKEN: "change-me"
+
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+  database: agentdojo
+  user: agentdojo
+  password: agentdojo
+  storage: 5Gi
+  storageClass: ""
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  resources:
+    requests: { cpu: 50m,  memory: 64Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+
+ingress:
+  enabled: true
+  className: ""
+  host: agentdojo.live
+  tls:
+    enabled: false
+    secretName: ""
+  annotations: {}

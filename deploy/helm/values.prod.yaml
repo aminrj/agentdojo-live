@@ -1,0 +1,18 @@
+# Production overrides. Used by `make deploy`.
+
+image:
+  tag: "latest"
+
+backend:
+  replicas: 2
+  env:
+    LLM_PROVIDER: "ollama"
+    RATE_LIMIT_PER_HOUR: "50"
+  secrets:
+    EXFIL_LISTENER_TOKEN: "REPLACE-ME-WITH-A-LONG-RANDOM-STRING"
+
+postgres:
+  password: "REPLACE-ME"
+
+ingress:
+  host: agentdojo.live

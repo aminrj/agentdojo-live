@@ -9,7 +9,8 @@ from pydantic import BaseModel
 
 from app import db
 from app.config import get_settings
-from app.missions import all_missions, get as get_mission
+from app.missions import all_missions
+from app.missions import get as get_mission
 
 router = APIRouter(prefix="/api", tags=["session"])
 settings = get_settings()
