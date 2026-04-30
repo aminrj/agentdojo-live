@@ -40,8 +40,28 @@ class Mission:
     # Short OWASP / threat-model tag shown on the mission card.
     threat_class: str = ""
 
+    # Email domain considered "internal" for this mission's company. The
+    # /api/exfil/ingest endpoint and any in-loop solve_check that cares
+    # about external recipients should read this rather than hardcoding a
+    # value, so that each mission can model its own org.
+    internal_email_domain: str = "example.com"
+
+    # Visitor-facing pre-mission briefing (markdown). Shown on a brief
+    # screen before the chat opens. Should describe the target agent, the
+    # tools it has, and the implicit attacker objective WITHOUT spoiling
+    # the exploit. Defaults to empty (frontend falls back to summary).
+    briefing_md: str = ""
+
     def canary_for(self, session_id: str) -> str:
         return self.canary_template.format(session_short=session_id[:8])
+
+    def is_external(self, email: str) -> bool:
+        """True iff ``email`` is a syntactically plausible address that does
+        not belong to this mission's internal domain."""
+        e = (email or "").strip().lower()
+        if "@" not in e:
+            return False
+        return not e.endswith("@" + self.internal_email_domain.lower())
 
 
 _REGISTRY: dict[str, Mission] = {}

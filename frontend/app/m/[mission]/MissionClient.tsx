@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import ChatBox, { type ChatMsg } from '@/components/ChatBox';
 import ToolCallPanel, { type ToolEvent } from '@/components/ToolCallPanel';
 import SuccessOverlay from '@/components/SuccessOverlay';
@@ -17,6 +18,8 @@ type Mission = {
   hint_2_after_turns: number;
   difficulty?: string;
   threat_class?: string;
+  briefing_md?: string;
+  internal_email_domain?: string;
 };
 
 type SolveStatus = {
@@ -39,6 +42,7 @@ function getOrCreateSessionId(): string {
 
 export default function MissionClient({ mission }: { mission: Mission }) {
   const [sessionId, setSessionId] = useState('');
+  const [started, setStarted] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [tools, setTools] = useState<ToolEvent[]>([]);
   const [busy, setBusy] = useState(false);
@@ -50,7 +54,20 @@ export default function MissionClient({ mission }: { mission: Mission }) {
 
   useEffect(() => {
     setSessionId(getOrCreateSessionId());
-  }, []);
+    // Per-mission "already started" flag: returning visitors with chat
+    // history shouldn't have to re-read the briefing every time.
+    if (typeof window !== 'undefined') {
+      const k = `agentdojo:started:${mission.id}`;
+      if (window.localStorage.getItem(k) === '1') setStarted(true);
+    }
+  }, [mission.id]);
+
+  const beginMission = useCallback(() => {
+    setStarted(true);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`agentdojo:started:${mission.id}`, '1');
+    }
+  }, [mission.id]);
 
   const checkSolve = useCallback(async () => {
     if (!sessionId) return;
@@ -183,6 +200,72 @@ export default function MissionClient({ mission }: { mission: Mission }) {
     return null;
   }, [turns, mission.hint_1, mission.hint_2, mission.hint_1_after_turns, mission.hint_2_after_turns, solve?.solved]);
 
+  if (!started) {
+    return (
+      <main className="min-h-screen flex flex-col">
+        <header className="border-b border-line px-6 py-3 flex items-center justify-between">
+          <a href="/" className="text-sm text-zinc-500 hover:text-zinc-300">
+            ← agentdojo.live
+          </a>
+          <div className="text-xs text-zinc-500">
+            session: <span className="code">{sessionId.slice(0, 8) || '…'}</span>
+          </div>
+        </header>
+
+        <section className="mx-auto w-full max-w-3xl px-6 py-10">
+          <div className="text-xs uppercase tracking-widest text-zinc-500">
+            {mission.id}
+          </div>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight">{mission.title}</h1>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {mission.difficulty && (
+              <span className="rounded border border-zinc-700 bg-zinc-800/60 px-2 py-0.5 text-xs text-zinc-300">
+                {mission.difficulty}
+              </span>
+            )}
+            {mission.threat_class && (
+              <span className="rounded border border-zinc-700 bg-zinc-800/60 px-2 py-0.5 text-xs text-zinc-300">
+                {mission.threat_class}
+              </span>
+            )}
+            <span className="rounded border border-zinc-700 bg-zinc-800/60 px-2 py-0.5 text-xs text-zinc-300">
+              {mission.solve_count} solves
+            </span>
+          </div>
+
+          <div className="prose prose-invert mt-6 max-w-none text-sm">
+            <ReactMarkdown>
+              {mission.briefing_md && mission.briefing_md.length > 0
+                ? mission.briefing_md
+                : mission.summary}
+            </ReactMarkdown>
+          </div>
+
+          {mission.available_tools.length > 0 && (
+            <div className="mt-6 card p-4 text-xs text-zinc-400">
+              <div className="text-zinc-200 font-semibold">Tools the agent can call</div>
+              <div className="mt-2 font-mono text-zinc-300">
+                {mission.available_tools.join(', ')}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 flex items-center gap-4">
+            <button
+              onClick={beginMission}
+              className="rounded bg-accent px-5 py-2 font-semibold text-ink hover:opacity-90"
+            >
+              Begin mission →
+            </button>
+            <span className="text-xs text-zinc-500">
+              Per-IP rate limit applies. Be civil.
+            </span>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="h-screen flex flex-col">
       <header className="border-b border-line px-6 py-3 flex items-center justify-between">
@@ -227,6 +310,7 @@ export default function MissionClient({ mission }: { mission: Mission }) {
 
       {overlayOpen && solve?.solved && solve.writeup_md && solve.flag && (
         <SuccessOverlay
+          missionTitle={mission.title}
           flag={solve.flag}
           writeup={solve.writeup_md}
           solveCount={solve.solve_count}

@@ -32,6 +32,8 @@ class MissionPublic(BaseModel):
     hint_2_after_turns: int
     difficulty: str = "easy"
     threat_class: str = ""
+    briefing_md: str = ""
+    internal_email_domain: str = "example.com"
 
 
 @router.post("/session", response_model=SessionCreate)
@@ -56,6 +58,8 @@ async def list_missions() -> list[MissionPublic]:
                 hint_2_after_turns=settings.hint_2_after_turns,
                 difficulty=m.difficulty,
                 threat_class=m.threat_class,
+                briefing_md=m.briefing_md,
+                internal_email_domain=m.internal_email_domain,
             )
         )
     return out
@@ -79,4 +83,6 @@ async def get_mission_route(mission_id: str) -> MissionPublic:
         hint_2_after_turns=settings.hint_2_after_turns,
         difficulty=m.difficulty,
         threat_class=m.threat_class,
+        briefing_md=m.briefing_md,
+        internal_email_domain=m.internal_email_domain,
     )

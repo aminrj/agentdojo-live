@@ -3,11 +3,13 @@
 import ReactMarkdown from 'react-markdown';
 
 export default function SuccessOverlay({
+  missionTitle,
   flag,
   writeup,
   solveCount,
   onClose,
 }: {
+  missionTitle: string;
   flag: string;
   writeup: string;
   solveCount: number;
@@ -17,7 +19,7 @@ export default function SuccessOverlay({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="card max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
         <div className="text-xs uppercase tracking-widest text-accent">Mission solved</div>
-        <h2 className="mt-1 text-2xl font-semibold">Silent Redirect — complete</h2>
+        <h2 className="mt-1 text-2xl font-semibold">{missionTitle} — complete</h2>
         <div className="mt-3 text-sm text-zinc-400">
           You are solver #{solveCount}.
         </div>

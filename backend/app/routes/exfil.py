@@ -41,7 +41,7 @@ async def ingest(
         raise HTTPException(status_code=404, detail="unknown mission") from exc
 
     canary = mission.canary_for(payload.session_id)
-    is_external = "@" in payload.to and not payload.to.lower().endswith("@example.com")
+    is_external = mission.is_external(payload.to)
     contains_canary = canary in payload.body
 
     log.info(
