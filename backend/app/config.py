@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     # Rate limiting
     rate_limit_per_hour: int = 50
 
+    # Global LLM concurrency cap (GPU slots). Requests beyond this are queued
+    # gracefully with a Retry-After response. Size to the GPU you have.
+    max_concurrent_llm: int = 3
+
+    # Feature flag: set to true to wire Postgres into the critical path.
+    # Default false so v1 runs with Redis only (single homelab node).
+    use_postgres: bool = False
+
     # Exfil
     exfil_listener_url: str = "http://localhost:8000/api/exfil/ingest"
     exfil_listener_token: str = "change-me-in-prod"

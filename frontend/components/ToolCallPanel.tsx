@@ -13,38 +13,49 @@ export default function ToolCallPanel({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-line p-3">
-        <div className="text-xs uppercase tracking-widest text-zinc-500">
-          Agent tools
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
+      {/* Header: available tool list */}
+      <div className="border-b border-line px-4 py-2.5">
+        <div className="label text-zinc-500 mb-2">available tools</div>
+        <div className="flex flex-wrap gap-1.5">
           {availableTools.map((t) => (
-            <span key={t} className="rounded bg-ink border border-line px-2 py-1 code text-zinc-300">
+            <span
+              key={t}
+              className="code rounded border border-line bg-ink px-2 py-0.5 text-zinc-400 text-[11px]"
+            >
               {t}
             </span>
           ))}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+
+      {/* Event feed */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
         {events.length === 0 && (
-          <div className="text-zinc-500 text-sm">
-            Tool calls and results will appear here as the agent acts.
+          <div className="text-sm text-zinc-600 pt-2">
+            Tool calls appear here as the agent acts.
           </div>
         )}
+
         {events.map((e, i) =>
           e.kind === 'call' ? (
-            <div key={i} className="card p-2">
-              <div className="text-[10px] uppercase tracking-widest text-accent">tool call</div>
-              <div className="code mt-1">
-                {e.name}({JSON.stringify(e.arguments)})
+            <div key={i} className="rounded border border-line bg-canvas p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="label text-accent">call</span>
+                <code className="code text-zinc-200 text-[11px]">{e.name}()</code>
               </div>
+              <pre className="code text-zinc-500 text-[11px] whitespace-pre-wrap break-all leading-relaxed">
+                {JSON.stringify(e.arguments, null, 2)}
+              </pre>
             </div>
           ) : (
-            <div key={i} className="card p-2 border-zinc-700">
-              <div className="text-[10px] uppercase tracking-widest text-zinc-400">
-                tool result · {e.name}
+            <div key={i} className="rounded border border-zinc-800/60 bg-ink p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="label text-zinc-500">result</span>
+                <code className="code text-zinc-400 text-[11px]">{e.name}</code>
               </div>
-              <pre className="code mt-1 whitespace-pre-wrap text-zinc-300">{e.content}</pre>
+              <pre className="code text-zinc-500 text-[11px] whitespace-pre-wrap break-all leading-relaxed">
+                {e.content}
+              </pre>
             </div>
           )
         )}

@@ -24,6 +24,7 @@ class MissionPublic(BaseModel):
     id: str
     title: str
     summary: str
+    target_agent: str = ""
     available_tools: list[str]
     solve_count: int
     hint_1: str
@@ -50,6 +51,7 @@ async def list_missions() -> list[MissionPublic]:
                 id=m.id,
                 title=m.title,
                 summary=m.summary,
+                target_agent=m.target_agent,
                 available_tools=m.available_tools,
                 solve_count=await db.count_solves(m.id),
                 hint_1=m.hint_1,
@@ -75,6 +77,7 @@ async def get_mission_route(mission_id: str) -> MissionPublic:
         id=m.id,
         title=m.title,
         summary=m.summary,
+        target_agent=m.target_agent,
         available_tools=m.available_tools,
         solve_count=await db.count_solves(m.id),
         hint_1=m.hint_1,

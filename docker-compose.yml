@@ -1,6 +1,9 @@
 name: agentdojo-live
 
 services:
+  # Postgres is dormant in v1 (USE_POSTGRES=false by default).
+  # Start it and set USE_POSTGRES=true in .env to re-enable.
+  # Helm chart (deploy/helm/) is for future multi-node use only.
   postgres:
     image: postgres:16-alpine
     environment:
@@ -16,6 +19,8 @@ services:
       retries: 10
     ports:
       - "5432:5432"
+    profiles:
+      - postgres
 
   redis:
     image: redis:7-alpine
@@ -32,13 +37,12 @@ services:
       context: ./backend
     env_file: .env
     environment:
-      POSTGRES_HOST: postgres
       REDIS_URL: redis://redis:6379/0
       EXFIL_LISTENER_URL: http://backend:8000/api/exfil/ingest
       CORS_ORIGINS: '["http://localhost:3000"]'
     depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
+      redis:
+        condition: service_healthy
     ports:
       - "8000:8000"
 

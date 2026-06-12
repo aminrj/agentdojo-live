@@ -52,6 +52,21 @@ class Mission:
     # the exploit. Defaults to empty (frontend falls back to summary).
     briefing_md: str = ""
 
+    # Post-solve "what would have stopped this" section (markdown).
+    # Rendered in the trace panel's "The Defense" tab. Keep it to plain-
+    # language controls — not theory, not the writeup. The acceptance bar:
+    # a solver can explain the defense to a colleague immediately after.
+    defense_note_md: str = ""
+
+    # Annotation config used by the frontend trace panel to label and
+    # highlight steps. Keys used by the frontend:
+    #   "tool_roles":      dict[tool_name, label]  — display label per tool
+    #   "trifecta":        list of {label, tool, description} — lethal-trifecta
+    #                      or equivalent structural labels for the mechanism
+    #   "injection_tools": list[str]  — tools whose *arguments* carry the injection
+    #   "injection_field": str        — the argument name that is the injection token
+    trace_labels: dict[str, Any] = field(default_factory=dict)
+
     def canary_for(self, session_id: str) -> str:
         return self.canary_template.format(session_short=session_id[:8])
 

@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import db
 from app.config import get_settings
 from app.logging import configure_logging, log
-from app.missions import mission_01  # noqa: F401  -- side-effect: registers mission
 from app.routes import chat, exfil, session, solve
+from app.routes import wall
 
 settings = get_settings()
 
@@ -19,11 +19,12 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     configure_logging()
-    log.info("startup", env=settings.app_env, llm=settings.llm_provider)
-    try:
-        await db.init_db()
-    except Exception as exc:  # noqa: BLE001
-        log.warning("db_init_failed", error=str(exc))
+    log.info("startup", env=settings.app_env, llm=settings.llm_provider, use_postgres=settings.use_postgres)
+    if settings.use_postgres:
+        try:
+            await db.init_db()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("db_init_failed", error=str(exc))
     yield
     log.info("shutdown")
 
@@ -48,3 +49,4 @@ app.include_router(session.router)
 app.include_router(chat.router)
 app.include_router(solve.router)
 app.include_router(exfil.router)
+app.include_router(wall.router)

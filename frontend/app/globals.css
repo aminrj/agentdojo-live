@@ -3,19 +3,71 @@
 @tailwind utilities;
 
 html, body { height: 100%; }
+
 body {
-  background: #0b0d12;
-  color: #e6e8ee;
+  background: #0d0b0a;
+  color: #e2ddd8;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Molntek brand monospace — JetBrains Mono */
 .code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.85rem;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.8125rem;
+  letter-spacing: 0.01em;
 }
 
+/* Base card */
 .card {
-  background: #11141b;
-  border: 1px solid #1f2430;
-  border-radius: 0.5rem;
+  background: #141210;
+  border: 1px solid #262018;
+  border-radius: 0.375rem;
+}
+
+/* Left accent bar — Molntek editorial pattern */
+.accent-bar {
+  border-left: 3px solid #c8553d;
+  padding-left: 1rem;
+}
+
+/* Uppercase label — small-caps pattern from Molntek brand */
+.label {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Thinking indicator dots */
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0.2; }
+  40%           { opacity: 1; }
+}
+.thinking-dot {
+  animation: blink 1.4s infinite both;
+}
+.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Prose overrides for ReactMarkdown in dark theme */
+.prose-invert h1, .prose-invert h2, .prose-invert h3 {
+  font-family: var(--font-display, Georgia, serif);
+  letter-spacing: -0.01em;
+}
+.prose-invert code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+  background: rgba(200, 85, 61, 0.12);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+}
+.prose-invert pre code {
+  background: transparent;
+  padding: 0;
+}
+.prose-invert pre {
+  background: #0d0b0a;
+  border: 1px solid #262018;
+  border-radius: 0.375rem;
 }

@@ -1,8 +1,11 @@
 """SSE chat route. One POST opens a stream that emits agent events.
 
 Per-IP rate limit applies to each LLM call (counted as one regardless of how
-many tool hops the loop performs). On 429, the stream is not opened and the
-response is a normal HTTP error.
+many tool hops the loop performs).
+
+A global concurrency cap (gpu:active counter in Redis) limits simultaneous LLM
+inferences to settings.max_concurrent_llm. Beyond the cap, the server returns
+503 with Retry-After so the client can queue gracefully instead of hanging.
 """
 
 from __future__ import annotations
@@ -19,7 +22,12 @@ from app.config import get_settings
 from app.logging import log
 from app.missions import get as get_mission
 from app.rate_limit import check_and_consume
-from app.redis_store import load_session_state, save_session_state
+from app.redis_store import (
+    acquire_gpu_slot,
+    load_session_state,
+    release_gpu_slot,
+    save_session_state,
+)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 settings = get_settings()
@@ -53,6 +61,13 @@ async def chat_stream(payload: ChatRequest, request: Request):
             headers={"Retry-After": str(rl.retry_after)},
         )
 
+    if not await acquire_gpu_slot(settings.max_concurrent_llm):
+        raise HTTPException(
+            status_code=503,
+            detail="homelab_at_capacity",
+            headers={"Retry-After": "15"},
+        )
+
     state = await load_session_state(payload.session_id, payload.mission_id)
     provider = get_provider()
 
@@ -70,5 +85,7 @@ async def chat_stream(payload: ChatRequest, request: Request):
         except Exception as exc:  # noqa: BLE001
             log.exception("chat_stream_failed", error=str(exc))
             yield {"event": "error", "data": json.dumps({"message": str(exc)})}
+        finally:
+            await release_gpu_slot()
 
     return EventSourceResponse(event_gen())
