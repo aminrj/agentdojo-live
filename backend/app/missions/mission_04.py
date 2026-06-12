@@ -209,7 +209,9 @@ TRACE_LABELS = {
         {
             "label": "outbound-action",
             "tool": "send_email",
-            "description": "The hijacked agent executes the hidden instructions and exfiltrates data",
+            "description": (
+                "The hijacked agent executes the hidden instructions and exfiltrates data"
+            ),
         },
     ],
     "injection_tools": ["register_tool"],

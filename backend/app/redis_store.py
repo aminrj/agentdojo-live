@@ -12,7 +12,7 @@ v1 data model (all in Redis, no Postgres in the critical path):
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import redis.asyncio as redis
@@ -109,7 +109,7 @@ async def append_wall_entry(mission_id: str, username: str, payload: str) -> Non
         {
             "username": username[:32],
             "payload": payload[:1000],
-            "solved_at": datetime.now(timezone.utc).isoformat(),
+            "solved_at": datetime.now(UTC).isoformat(),
         }
     )
     await r.rpush(key, entry)

@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     # LLM
     llm_provider: Literal["mock", "ollama"] = "mock"
     ollama_base_url: str = "http://localhost:11434/v1"
-    ollama_model: str = "qwen2.5:7b-instruct"
+    # Pinned model. Keep in sync with .env.example and the README. The spec
+    # forbids a floating tag or a dated model — a silent swap invalidates every
+    # payload published to the wall of solves.
+    ollama_model: str = "qwen3:8b"
     llm_temperature: float = 0.2
     llm_max_tokens: int = 1024
 

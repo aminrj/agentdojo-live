@@ -10,8 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import db
 from app.config import get_settings
 from app.logging import configure_logging, log
-from app.routes import chat, exfil, session, solve
-from app.routes import wall
+from app.routes import chat, exfil, session, solve, wall
 
 settings = get_settings()
 
@@ -19,7 +18,12 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     configure_logging()
-    log.info("startup", env=settings.app_env, llm=settings.llm_provider, use_postgres=settings.use_postgres)
+    log.info(
+        "startup",
+        env=settings.app_env,
+        llm=settings.llm_provider,
+        use_postgres=settings.use_postgres,
+    )
     if settings.use_postgres:
         try:
             await db.init_db()

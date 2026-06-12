@@ -11,8 +11,9 @@ browser as a Server-Sent Event.
 
 Each mission ships a pluggable `solve_check(event, state, session_id, mission)`
 callback that the loop invokes after every event; when it returns `True`,
-the loop records the solve in Postgres and emits a `{"type":"solve"}` SSE
-frame so the writeup overlay opens immediately. Mission 01 also keeps the
+the loop records the solve (Redis by default in v1; Postgres only when
+`USE_POSTGRES=true`) and emits a `{"type":"solve"}` SSE frame so the writeup
+overlay opens immediately. Mission 01 also keeps the
 legacy egress detector at `/api/exfil/ingest`, which is what the agent's
 `send_email` tool POSTs to — it checks for the per-session canary in an
 external email and records the solve through the same idempotent path.
@@ -28,7 +29,8 @@ visitor browser ──► /api/chat/stream  (SSE)
               │  (app/agents/loop)  │
               │  - filters tools    │
               │    by mission       │
-              │  - runs solve_check │ ──────► Postgres (solves) ─┐
+              │  - runs solve_check │ ──────► Redis (solves) ────┐
+              │                     │        (Postgres optional) │
               └────────┬────────────┘                            │
                        │ tool calls                                │
                        ▼                                           │
@@ -91,12 +93,16 @@ visitor browser ──► /api/chat/stream  (SSE)
 
 - Conversation history + tool state: Redis, TTL 2 hours.
 - Rate-limit counters: Redis, TTL 1 hour.
-- Solves: Postgres, retained.
+- Solves: Redis by default (`solved:*` keys, 30-day TTL; `solve_count:*`
+  counter, no TTL). Postgres only when `USE_POSTGRES=true`.
 - Logs: stdout JSON. Capture upstream as desired. We do not persist raw
   IPs beyond the rate-limit bucket lifetime.
 
 ## Performance / scaling notes
 
 - A single backend pod handles many concurrent sessions because the loop is `async` and tool calls do not block.
-- The bottleneck is the Ollama instance. Default budget assumes a single-GPU host serving Qwen2.5-7B-Instruct at ~30 tok/s.
+- The bottleneck is the Ollama instance. Default budget assumes a single-GPU host serving the pinned `qwen3:8b` at ~30 tok/s.
+- A global concurrency cap (`MAX_CONCURRENT_LLM`, default 3) bounds simultaneous
+  inferences; requests beyond the cap get a 503 + `Retry-After` and the
+  frontend queues with a visible countdown.
 - Rate limit defaults to 50 LLM calls/IP/hour. Tune via `RATE_LIMIT_PER_HOUR`.
