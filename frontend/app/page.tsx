@@ -17,7 +17,7 @@ async function getMissions(): Promise<Mission[]> {
     if (!r.ok) return [];
     const all: Mission[] = await r.json();
     // v1: missions 01 and 04 only. 02 and 03 ship in v1.x.
-    return all.filter((m) => m.id === 'mission-01' || m.id === 'mission-04');
+    return all;
   } catch {
     return [];
   }
@@ -31,6 +31,8 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 const MISSION_NUMBERS: Record<string, string> = {
   'mission-01': '01',
+  'mission-02': '02',
+  'mission-03': '03',
   'mission-04': '04',
 };
 
@@ -80,7 +82,7 @@ export default async function HomePage() {
 
       {/* ---- Mission grid ---- */}
       <section className="mt-12">
-        <div className="label text-zinc-500 mb-5">v1 missions</div>
+        <div className="label text-zinc-500 mb-5">missions</div>
 
         {missions.length === 0 && (
           <div className="card p-6 text-zinc-500 text-sm">
