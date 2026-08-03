@@ -7,6 +7,8 @@ v1 data model (all in Redis, no Postgres in the critical path):
   wall:{mission_id}                — Redis list of JSON wall entries (capped)
   rl:{ip}:{hour_bucket}            — per-IP rate-limit counter (1h TTL)
   gpu:active                       — global concurrency counter for LLM calls
+  budget:{yyyy-mm-dd}              — global daily LLM call counter (26h TTL)
+  llm:disabled                     — operator kill switch (presence = parked)
 """
 
 from __future__ import annotations
@@ -149,3 +151,59 @@ async def release_gpu_slot() -> None:
     val = await r.decr(_GPU_KEY)
     if val < 0:
         await r.set(_GPU_KEY, 0)
+
+
+# ---- global daily budget (spend circuit-breaker) -------------------------
+# Per-IP limits bound one visitor; they do not bound total cost, because the
+# endpoint is unauthenticated and the number of source IPs is not ours to
+# control. This is the ceiling that actually caps the bill.
+
+_BUDGET_TTL = 60 * 60 * 26  # one day + slack, so the key self-cleans
+
+
+def _budget_key() -> str:
+    return f"budget:{datetime.now(UTC).date().isoformat()}"
+
+
+async def consume_daily_budget(cap: int) -> bool:
+    """Consume one unit of today's global call budget.
+
+    Returns True if the call is within budget (or if ``cap`` is 0, meaning
+    uncapped). Refunds and returns False when the cap is exceeded.
+    """
+    if cap <= 0:
+        return True
+    r = get_redis()
+    key = _budget_key()
+    pipe = r.pipeline()
+    pipe.incr(key)
+    pipe.expire(key, _BUDGET_TTL)
+    used, _ = await pipe.execute()
+    if int(used) > cap:
+        await r.decr(key)
+        return False
+    return True
+
+
+async def daily_budget_used() -> int:
+    raw = await get_redis().get(_budget_key())
+    return int(raw) if raw else 0
+
+
+# ---- operational kill switch ---------------------------------------------
+# Lets an operator park the LLM without a redeploy or an outage: missions, the
+# wall, and the docs keep serving; only agent invocation is refused.
+
+_KILL_KEY = "llm:disabled"
+
+
+async def llm_is_disabled() -> bool:
+    return bool(await get_redis().exists(_KILL_KEY))
+
+
+async def set_llm_disabled(disabled: bool) -> None:
+    r = get_redis()
+    if disabled:
+        await r.set(_KILL_KEY, "1")
+    else:
+        await r.delete(_KILL_KEY)

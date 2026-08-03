@@ -1,11 +1,16 @@
 """SSE chat route. One POST opens a stream that emits agent events.
 
-Per-IP rate limit applies to each LLM call (counted as one regardless of how
-many tool hops the loop performs).
+Admission control runs in four stages before a turn is allowed, cheapest and
+most permanent first, so a request never consumes a slot it will not use:
 
-A global concurrency cap (gpu:active counter in Redis) limits simultaneous LLM
-inferences to settings.max_concurrent_llm. Beyond the cap, the server returns
-503 with Retry-After so the client can queue gracefully instead of hanging.
+1. Kill switch      — operator has parked the LLM (503, no retry promised).
+2. Daily budget     — global spend ceiling for the UTC day (429).
+3. Per-IP rate limit — one visitor's hourly quota (429 + Retry-After).
+4. Concurrency slot — simultaneous inferences in flight (503 + Retry-After).
+
+Only stage 4 is released afterwards; the others are consumed intentionally.
+One LLM call is counted per turn regardless of how many tool hops the agent
+loop performs internally.
 """
 
 from __future__ import annotations
@@ -18,12 +23,15 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.agents.llm import get_provider
 from app.agents.loop import run_turn
+from app.client_ip import client_ip
 from app.config import get_settings
 from app.logging import log
 from app.missions import get as get_mission
 from app.rate_limit import check_and_consume
 from app.redis_store import (
     acquire_gpu_slot,
+    consume_daily_budget,
+    llm_is_disabled,
     load_session_state,
     release_gpu_slot,
     save_session_state,
@@ -39,13 +47,6 @@ class ChatRequest(BaseModel):
     message: str
 
 
-def _client_ip(req: Request) -> str:
-    fwd = req.headers.get("x-forwarded-for")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return req.client.host if req.client else "0.0.0.0"
-
-
 @router.post("/stream")
 async def chat_stream(payload: ChatRequest, request: Request):
     try:
@@ -53,7 +54,18 @@ async def chat_stream(payload: ChatRequest, request: Request):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Unknown mission") from exc
 
-    rl = await check_and_consume(_client_ip(request))
+    # 1. Kill switch — config flag or the Redis-backed runtime switch.
+    if not settings.llm_enabled or await llm_is_disabled():
+        raise HTTPException(status_code=503, detail="llm_parked")
+
+    # 2. Global daily ceiling. Checked before the per-IP limit so that one
+    #    visitor's quota is not spent on a call the budget would reject anyway.
+    if not await consume_daily_budget(settings.daily_llm_call_cap):
+        log.warning("daily_budget_exhausted", cap=settings.daily_llm_call_cap)
+        raise HTTPException(status_code=429, detail="daily_budget_exhausted")
+
+    # 3. Per-IP hourly quota.
+    rl = await check_and_consume(client_ip(request))
     if not rl.allowed:
         raise HTTPException(
             status_code=429,
@@ -61,10 +73,11 @@ async def chat_stream(payload: ChatRequest, request: Request):
             headers={"Retry-After": str(rl.retry_after)},
         )
 
+    # 4. Concurrency slot — the only stage released in `finally`.
     if not await acquire_gpu_slot(settings.max_concurrent_llm):
         raise HTTPException(
             status_code=503,
-            detail="homelab_at_capacity",
+            detail="at_capacity",
             headers={"Retry-After": "15"},
         )
 

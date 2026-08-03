@@ -18,11 +18,29 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     configure_logging()
+
+    # Fail closed on a misconfigured production deploy. Every check here
+    # describes a state where the app would come up looking healthy while
+    # being insecure or serving a fake agent — refusing to boot is the
+    # louder, safer failure.
+    if settings.app_env == "production":
+        problems = settings.check_production_ready()
+        if problems:
+            for p in problems:
+                log.error("production_config_rejected", problem=p)
+            raise RuntimeError(
+                "Refusing to start in production with an unsafe configuration:\n  - "
+                + "\n  - ".join(problems)
+            )
+
     log.info(
         "startup",
         env=settings.app_env,
         llm=settings.llm_provider,
+        model=settings.resolved_llm_display_name,
         use_postgres=settings.use_postgres,
+        daily_cap=settings.daily_llm_call_cap,
+        trusted_ip_header=settings.trusted_client_ip_header or "(socket peer)",
     )
     if settings.use_postgres:
         try:

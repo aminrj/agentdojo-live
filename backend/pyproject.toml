@@ -27,6 +27,9 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.10",
     "httpx>=0.27",
+    # In-process Redis so admission control (rate limit, daily budget, kill
+    # switch) is covered in CI without standing up a service container.
+    "fakeredis>=2.23",
 ]
 
 [build-system]
