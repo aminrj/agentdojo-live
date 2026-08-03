@@ -11,6 +11,7 @@ from app import db
 from app.config import get_settings
 from app.missions import all_missions
 from app.missions import get as get_mission
+from app.redis_store import daily_budget_used, llm_is_disabled
 
 router = APIRouter(prefix="/api", tags=["session"])
 settings = get_settings()
@@ -18,6 +19,23 @@ settings = get_settings()
 
 class SessionCreate(BaseModel):
     session_id: str
+
+
+class StatusPublic(BaseModel):
+    """What the visitor is actually attacking, stated plainly.
+
+    The central claim of this project is that you are hijacking a real
+    tool-calling agent, not a scripted demo. A reader who finds MockProvider in
+    the source has no way to tell which is running unless we say so — hence
+    ``is_real_model``, which is deliberately blunt.
+    """
+
+    model: str
+    provider: str
+    is_real_model: bool
+    llm_available: bool
+    daily_budget_used: int
+    daily_budget_cap: int  # 0 = uncapped
 
 
 class MissionPublic(BaseModel):
@@ -40,6 +58,19 @@ class MissionPublic(BaseModel):
 @router.post("/session", response_model=SessionCreate)
 async def create_session() -> SessionCreate:
     return SessionCreate(session_id=secrets.token_urlsafe(16))
+
+
+@router.get("/status", response_model=StatusPublic)
+async def status() -> StatusPublic:
+    parked = (not settings.llm_enabled) or await llm_is_disabled()
+    return StatusPublic(
+        model=settings.resolved_llm_display_name,
+        provider=settings.llm_provider,
+        is_real_model=settings.llm_provider != "mock",
+        llm_available=not parked,
+        daily_budget_used=await daily_budget_used(),
+        daily_budget_cap=settings.daily_llm_call_cap,
+    )
 
 
 @router.get("/missions", response_model=list[MissionPublic])

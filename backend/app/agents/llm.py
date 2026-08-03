@@ -1,13 +1,23 @@
 """LLM provider abstraction.
 
-Two providers:
-- ``ollama``: real OpenAI-compatible endpoint (Ollama 0.3+ with a tool-calling model).
-- ``mock``: deterministic scripted provider used in tests and CI; emits a
-  hard-coded sequence of tool calls that exercises the win condition.
+Two implementations, three configurations:
+
+- ``OpenAICompatibleProvider`` — anything speaking the OpenAI chat-completions
+  API with tool calling. That covers a local Ollama daemon (``LLM_PROVIDER=ollama``)
+  and every hosted gateway worth using (``LLM_PROVIDER=openai`` — OpenAI, Groq,
+  Together, DeepInfra, OpenRouter, vLLM, LiteLLM). Swapping between a homelab
+  GPU and a hosted API is therefore a config change, not a code change.
+- ``MockProvider`` — deterministic scripted provider used in tests and CI; emits
+  a hard-coded sequence of tool calls that exercises each mission's win
+  condition without any network access.
+
+The mission content does not know which provider is in play. That is the point:
+the attacks are properties of the agent architecture, not of one model.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -38,16 +48,15 @@ class LLMProvider(Protocol):
     ) -> AssistantTurn: ...
 
 
-# ---- Ollama (OpenAI-compatible) ----
+# ---- OpenAI-compatible (Ollama, OpenAI, Groq, Together, vLLM, ...) ----
 
 
-class OllamaProvider:
-    def __init__(self) -> None:
-        self._client = AsyncOpenAI(
-            base_url=settings.ollama_base_url,
-            api_key="ollama",  # required by client; ignored by Ollama
-        )
-        self._model = settings.ollama_model
+class OpenAICompatibleProvider:
+    """Any endpoint implementing OpenAI chat-completions with tool calling."""
+
+    def __init__(self, base_url: str, api_key: str, model: str) -> None:
+        self._client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        self._model = model
 
     async def chat(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
@@ -63,11 +72,15 @@ class OllamaProvider:
         msg = choice.message
         calls: list[ToolCall] = []
         for tc in msg.tool_calls or []:
-            import json as _json
-
+            # Models emit tool arguments as a JSON *string*, and a weaker model
+            # under an injection payload is exactly where that string comes back
+            # malformed. Degrade to empty args rather than killing the stream —
+            # a visitor mid-mission should see the agent stumble, not a 500.
             try:
-                args = _json.loads(tc.function.arguments or "{}")
-            except _json.JSONDecodeError:
+                args = json.loads(tc.function.arguments or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            if not isinstance(args, dict):
                 args = {}
             calls.append(ToolCall(id=tc.id, name=tc.function.name, arguments=args))
         return AssistantTurn(
@@ -321,4 +334,8 @@ class MockProvider:
 def get_provider() -> LLMProvider:
     if settings.llm_provider == "mock":
         return MockProvider()
-    return OllamaProvider()
+    return OpenAICompatibleProvider(
+        base_url=settings.resolved_llm_base_url,
+        api_key=settings.resolved_llm_api_key,
+        model=settings.resolved_llm_model,
+    )
