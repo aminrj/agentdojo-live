@@ -25,24 +25,24 @@ hijacked it and the one control that would have stopped it.
 
 > **[ demo GIF goes here — see the comment in this file for what to capture ]**
 
-## Try it
-
-**→ [agentdojo.aminrj.com](https://agentdojo.aminrj.com)**
-
-No signup, no accounts, no email wall. Four missions, hardest last.
-`/api/status` tells you which model you are actually attacking.
-
-## Run it locally
+## Run it — one command, no GPU, no API key
 
 ```bash
 git clone https://github.com/aminrj/agentdojo-live && cd agentdojo-live && make dev
 ```
 
 That is the whole thing — frontend, backend, and Redis on
-`http://localhost:3000`. It defaults to a deterministic mock provider, so it
-runs with **no GPU and no API key** (this is also what CI runs). To attack a
-real model, set `LLM_PROVIDER` to `ollama` for a local daemon or `openai` for
-any OpenAI-compatible endpoint. See [`.env.example`](.env.example).
+`http://localhost:3000`. No signup, no accounts, no email wall. It defaults to a
+deterministic mock provider, so it runs with **no GPU and no API key** (this is
+also what CI runs). To attack a real model, set `LLM_PROVIDER` to `ollama` for a
+local daemon or `openai` for any OpenAI-compatible endpoint. See
+[`.env.example`](.env.example). `/api/status` reports which model is actually
+behind the missions.
+
+> **Hosted instance.** A public instance runs on my own homelab at
+> [agentdojo.aminrj.com](https://agentdojo.aminrj.com) when it's up — it's a
+> single self-hosted node with no failover, so if it's offline, the one-command
+> local run above is the reliable path and the intended way to review this.
 
 ## The missions
 
