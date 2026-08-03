@@ -216,7 +216,11 @@ function TrifectaBanner({ trifecta }: { trifecta: TrifectaItem[] }) {
                 <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />
                 <span className={`label ${style.text}`}>{item.label}</span>
               </div>
-              <code className={`code text-[10px] opacity-60 block mb-1 ${style.text}`}>{item.tool}()</code>
+              {/* Not every attack step is a tool call — a system-prompt leak
+                  has no tools at all — so only call-shaped steps get parens. */}
+              <code className={`code text-[10px] opacity-60 block mb-1 ${style.text}`}>
+                {/\s/.test(item.tool) || item.tool.endsWith(')') ? item.tool : `${item.tool}()`}
+              </code>
               <p className={`text-xs leading-snug opacity-80 ${style.text}`}>{item.description}</p>
             </div>
           );
