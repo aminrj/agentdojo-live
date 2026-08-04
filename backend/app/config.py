@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     # payload published to the wall of solves.
     ollama_model: str = "qwen3:8b"
 
+    # The pinned model (qwen3:8b) is a *thinking* model: left on, it spends the
+    # token budget on a <think> trace and often never emits the tool call, so
+    # the tool-driven missions (03, 04) silently fail to resolve. Ollama's
+    # OpenAI-compatible endpoint honors a top-level ``think: false``, which we
+    # send when this is True (default). Gated to the ollama provider — a real
+    # OpenAI endpoint rejects the unknown field. Set False for a non-thinking
+    # Ollama model, or to deliberately attack the model in thinking mode.
+    ollama_disable_thinking: bool = True
+
     # Used when llm_provider == "openai". Same pinning rule applies: name an
     # exact model, never a floating alias, or published payloads rot.
     llm_base_url: str = "https://api.openai.com/v1"
