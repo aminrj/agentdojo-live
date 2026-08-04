@@ -9,19 +9,10 @@ file it reads or a tool description it trusts, watch it exfiltrate data it was
 told to protect, and then get the full trace showing exactly which token
 hijacked it and the one control that would have stopped it.
 
-<!-- ────────────────────────────────────────────────────────────────────────
-     TODO before launch: replace the placeholder below with the real capture.
-
-     What to record (≈6-8s, ends on the explanation, not the exfil):
-       1. Mission 01, type the payload that plants the injection
-       2. agent calls read_file  →  send_email to attacker@external.example
-       3. success overlay opens, injection span highlighted in orange
-       4. hold ~2s on the "attack chain" banner
-
-     Record at ~1200px wide, keep it under 5 MB or GitHub throttles it.
-     Save to docs/assets/mission-01-solve.gif, then swap in:
-       ![Mission 01: the agent exfiltrates a report it was told to protect](docs/assets/mission-01-solve.gif)
-     ──────────────────────────────────────────────────────────────────────── -->
+<p align="center">
+  <img src="docs/assets/mission-03-solve.gif" width="820"
+       alt="Mission 03, Confused Deputy: an instruction planted in a shared calendar entry makes the agent wire company funds to an attacker IBAN, then the post-solve trace highlights the exact injected step and the control that would have stopped it." />
+</p>
 
 ## Run it — one command, no GPU, no API key
 

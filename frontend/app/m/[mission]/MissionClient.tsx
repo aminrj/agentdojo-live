@@ -180,6 +180,11 @@ export default function MissionClient({ mission }: { mission: Mission }) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
+        // sse-starlette frames events with CRLF (\r\n\r\n between events); the
+        // split below looks for \n\n, so normalize first or no frame ever
+        // matches and nothing renders. Re-run on the whole buffer each read so
+        // a CRLF split across chunk boundaries still normalizes.
+        buf = buf.replace(/\r\n/g, '\n');
         let idx;
         while ((idx = buf.indexOf('\n\n')) !== -1) {
           const frame = buf.slice(0, idx);
