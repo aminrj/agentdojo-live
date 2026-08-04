@@ -40,6 +40,12 @@ services:
       REDIS_URL: redis://redis:6379/0
       EXFIL_LISTENER_URL: http://backend:8000/api/exfil/ingest
       CORS_ORIGINS: '["http://localhost:3000"]'
+    # Lets the container reach a host-side Ollama via
+    # OLLAMA_BASE_URL=host.docker.internal. Docker Desktop provides this name
+    # automatically; native Docker (e.g. on Linux/WSL2) needs it mapped to the
+    # host gateway explicitly, or the LLM calls fail with "no route to host".
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_healthy
