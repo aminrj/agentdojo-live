@@ -1,14 +1,21 @@
-# agentdojo-live — v1 Direction Specification
+# agentdojo-live — v1 scope specification
 
-> **For:** the implementing coding agent
-> **From:** project owner (Molntek / aminrj.com)
-> **Status:** Build spec. ~80% of the codebase already exists. This document defines what v1 *is*, what to cut, what to keep, and exactly how to ship it.
-> **Deploy target:** June 2026, homelab (`aigenlab`), single-node, no cloud budget.
-> **Hard rule:** This is a **credibility product, not a SaaS**. Every decision below optimizes for reputation, pedagogy, and shareability — never for revenue, accounts, or scale-for-scale's-sake.
+> **Status:** the specification v1 was built against, published as written.
+> It is a scoping document, so most of its content is about what *not* to
+> build — the failure mode for a project like this is not running out of
+> ideas, it is shipping all of them.
+>
+> **Hard rule it was written around:** this is a credibility product, not a
+> SaaS. Every decision optimizes for pedagogy and shareability, never for
+> revenue, accounts, or scale for its own sake.
+>
+> Kept in the repo unedited (beyond removing internal notes) because the cut
+> list is more informative than the feature list. Where the shipped product
+> diverged, [`ARCHITECTURE.md`](ARCHITECTURE.md) is authoritative.
 
 ---
 
-## 0. Context the agent must internalize before writing code
+## 0. Context to internalize before writing code
 
 A direct, hosted, free competitor already exists and shipped in September 2025: **Lakera's Gandalf: Agent Breaker** (`gandalf.lakera.ai/agent-breaker`). It is a hosted, browser-based, free hacking simulator with ~10 agentic apps covering prompt injection, memory tampering, tool abuse, and data leaks, scored 0–100 across 4 difficulty levels.
 
@@ -44,9 +51,18 @@ The owner's known failure mode is **overbuilding**. This section is binding. Bui
 - **Docker Compose + Cloudflare tunnel** deploy.
 - Clean **mission authoring guide** so a second dev (or community) can add missions.
 
-### 1.2 DO NOT BUILD in v1 (explicit — do not "just add it while I'm here")
+### 1.2 DO NOT BUILD in v1 (explicit — no "just add it while I'm here")
 
 - ❌ Missions 02 (System Prompt Heist) and 03 (Confused Deputy) — keep the code if it exists, but **disable in v1 UI**. 02 is commoditized (original-Gandalf territory, lowest production value); 03 ships in v1.x.
+
+  > **Diverged at ship time.** All four missions shipped. The rule above was
+  > about polish, not count: 02 and 03 were held back because they lacked the
+  > defense note and the labelled attack chain, not because the scenarios were
+  > weak. Once that content was written and a test was added to enforce it for
+  > every mission, the reason to hide them was gone. The scope discipline the
+  > rule was protecting is intact — the bar was "no mission ships without the
+  > post-solve panel that justifies it," and it is now enforced in CI rather
+  > than by omission.
 - ❌ Helm chart / Kubernetes. Single-node homelab = Docker Compose. Do not deploy K8s. If a Helm chart exists in the repo, leave it untouched but unused and note it as "future / multi-node only."
 - ❌ Postgres for solve tracking in v1. Redis is sufficient for optional-username state and wall-of-solves. (See §5 for the data model.) Keep any Postgres code dormant behind a feature flag; do not wire it into the v1 critical path.
 - ❌ Multiple user-selectable models.
@@ -251,7 +267,7 @@ v1 ships when **all** of these are true:
 
 ---
 
-## 12. Out-of-scope but documented (so the agent doesn't drift): v1.x → 12-month direction
+## 12. Out-of-scope but documented (so the build doesn't drift): v1.x → 12-month direction
 
 Do not build these now. Listed only so the architecture doesn't foreclose them.
 

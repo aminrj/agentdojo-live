@@ -1,4 +1,4 @@
-# Production overrides. Used by `make deploy`.
+# Multi-node overrides. Used by `make deploy-helm`. Not what v1 runs — see docs/SPEC.md §1.2.
 
 image:
   tag: "latest"

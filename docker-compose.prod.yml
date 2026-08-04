@@ -1,0 +1,47 @@
+# Production overlay: the local stack, plus a Cloudflare tunnel, minus every
+# port published to the host.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# The origin must be reachable *only* through the tunnel. Rate limiting keys on
+# CF-Connecting-IP, which Cloudflare sets and overwrites at its edge; if the
+# backend is also reachable directly, a client can forge that header and the
+# per-IP limit stops meaning anything. That is why every `ports:` mapping is
+# cleared here rather than merely left unmentioned.
+
+services:
+  postgres:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  backend:
+    ports: !reset []
+    environment:
+      APP_ENV: production
+      REDIS_URL: redis://redis:6379/0
+      EXFIL_LISTENER_URL: http://backend:8000/api/exfil/ingest
+      # Startup refuses to boot if any of these are unsafe — see
+      # Settings.check_production_ready().
+      TRUSTED_CLIENT_IP_HEADER: cf-connecting-ip
+      CORS_ORIGINS: '["https://${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME in .env}"]'
+    restart: unless-stopped
+
+  frontend:
+    ports: !reset []
+    environment:
+      BACKEND_URL: http://backend:8000
+      NEXT_PUBLIC_BACKEND_URL: https://${PUBLIC_HOSTNAME}
+    restart: unless-stopped
+
+  # Outbound-only connection to Cloudflare's edge: no inbound firewall rule, no
+  # port forward, no public IP on the origin.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      - frontend
+    restart: unless-stopped

@@ -16,8 +16,9 @@ async function getMissions(): Promise<Mission[]> {
     const r = await fetch(`${backend}/api/missions`, { cache: 'no-store' });
     if (!r.ok) return [];
     const all: Mission[] = await r.json();
-    // v1: missions 01 and 04 only. 02 and 03 ship in v1.x.
-    return all;
+    // All registered missions ship. Ordering is by id so the difficulty ramp
+    // (easy -> hard) is the reading order.
+    return all.sort((a, b) => a.id.localeCompare(b.id));
   } catch {
     return [];
   }

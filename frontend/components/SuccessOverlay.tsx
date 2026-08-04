@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 // ---- Types ----------------------------------------------------------------
@@ -216,7 +216,11 @@ function TrifectaBanner({ trifecta }: { trifecta: TrifectaItem[] }) {
                 <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />
                 <span className={`label ${style.text}`}>{item.label}</span>
               </div>
-              <code className={`code text-[10px] opacity-60 block mb-1 ${style.text}`}>{item.tool}()</code>
+              {/* Not every attack step is a tool call — a system-prompt leak
+                  has no tools at all — so only call-shaped steps get parens. */}
+              <code className={`code text-[10px] opacity-60 block mb-1 ${style.text}`}>
+                {/\s/.test(item.tool) || item.tool.endsWith(')') ? item.tool : `${item.tool}()`}
+              </code>
               <p className={`text-xs leading-snug opacity-80 ${style.text}`}>{item.description}</p>
             </div>
           );
@@ -226,10 +230,70 @@ function TrifectaBanner({ trifecta }: { trifecta: TrifectaItem[] }) {
   );
 }
 
-// ---- Wall of solves publish ----------------------------------------------
+// ---- Wall of solves ------------------------------------------------------
 
-function WallPublish({ missionId, sessionId, defaultPayload }: {
-  missionId: string; sessionId: string; defaultPayload: string;
+type WallEntry = { username: string; payload: string; solved_at: string };
+
+/** Other people's winning payloads.
+ *
+ * Only rendered post-solve, so there is nothing left to spoil — and seeing
+ * that the same agent fell to five different payloads is the point the
+ * mission is trying to make.
+ */
+function WallList({ missionId, refreshKey }: { missionId: string; refreshKey: number }) {
+  const [entries, setEntries] = useState<WallEntry[] | null>(null);
+  const [failed, setFailed]   = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/wall/${missionId}?limit=20`);
+        if (!r.ok) throw new Error(String(r.status));
+        const data: WallEntry[] = await r.json();
+        if (!cancelled) setEntries(data);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [missionId, refreshKey]);
+
+  if (failed) return null;
+  if (entries === null) {
+    return <div className="label text-zinc-600">loading wall…</div>;
+  }
+  if (entries.length === 0) {
+    return (
+      <div className="label text-zinc-600">
+        No published solves yet — yours would be the first.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {entries.map((e, i) => (
+        <div key={i} className="rounded border border-line bg-ink/60 px-3 py-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-sm font-semibold text-zinc-300">{e.username}</span>
+            <span className="label text-zinc-700 shrink-0">
+              {e.solved_at.slice(0, 10)}
+            </span>
+          </div>
+          {/* Attacker-authored text. Rendered as a JSX child so React escapes
+              it — never through ReactMarkdown, which is for mission content. */}
+          <pre className="mt-1.5 code text-[11px] text-zinc-500 whitespace-pre-wrap break-words">
+            {e.payload}
+          </pre>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WallPublish({ missionId, sessionId, defaultPayload, onPublished }: {
+  missionId: string; sessionId: string; defaultPayload: string; onPublished: () => void;
 }) {
   const [username, setUsername] = useState(() =>
     typeof window !== 'undefined' ? window.localStorage.getItem('agentdojo:username') ?? '' : ''
@@ -249,6 +313,7 @@ function WallPublish({ missionId, sessionId, defaultPayload }: {
         body: JSON.stringify({ session_id: sessionId, username: name, payload }),
       });
       setStatus(r.ok ? 'done' : 'error');
+      if (r.ok) onPublished();
     } catch { setStatus('error'); }
   };
 
@@ -319,6 +384,9 @@ export default function SuccessOverlay({
 }) {
   const defaultTab: Tab = trace?.length ? 'trace' : 'writeup';
   const [tab, setTab] = useState<Tab>(defaultTab);
+  // Bumped after a successful publish so the wall re-fetches and the solver
+  // sees their own entry appear.
+  const [wallVersion, setWallVersion] = useState(0);
 
   const trifecta    = traceLabels?.trifecta ?? [];
   const defaultPayload = trace ? extractPayload(trace, traceLabels ?? undefined) : '';
@@ -384,8 +452,17 @@ export default function SuccessOverlay({
                 </div>
               )}
 
-              <div className="mt-6">
-                <WallPublish missionId={missionId} sessionId={sessionId} defaultPayload={defaultPayload} />
+              <div className="mt-6 space-y-5">
+                <WallPublish
+                  missionId={missionId}
+                  sessionId={sessionId}
+                  defaultPayload={defaultPayload}
+                  onPublished={() => setWallVersion((v) => v + 1)}
+                />
+                <div>
+                  <div className="label text-zinc-500 mb-3">wall of solves</div>
+                  <WallList missionId={missionId} refreshKey={wallVersion} />
+                </div>
               </div>
             </div>
           )}

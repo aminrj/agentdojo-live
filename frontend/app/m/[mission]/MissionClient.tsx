@@ -145,14 +145,27 @@ export default function MissionClient({ mission }: { mission: Mission }) {
         body: JSON.stringify({ session_id: sessionId, mission_id: mission.id, message: text }),
       });
       if (!r.ok) {
-        if (r.status === 429) {
-          const ra = r.headers.get('Retry-After') ?? '?';
-          setError(`Rate limit reached. Try again in ${ra}s.`);
-        } else if (r.status === 503) {
+        // The backend distinguishes transient pressure (retry) from a hard
+        // stop (do not retry) via the `detail` field. Retrying a parked LLM
+        // or an exhausted daily budget just spins forever.
+        const detail = await r.json().then((b) => b?.detail).catch(() => null);
+
+        if (r.status === 503 && detail === 'at_capacity') {
           const retryAfter = parseInt(r.headers.get('Retry-After') ?? '15', 10);
           pendingMsgRef.current = text;
           setMessages((prev) => prev.slice(0, -1));
           setCapacityCountdown(retryAfter);
+        } else if (r.status === 503) {
+          setError('The agent is parked for maintenance. The missions and write-ups still work — try again later.');
+        } else if (r.status === 429 && detail === 'daily_budget_exhausted') {
+          setError("Today's global budget for this demo is spent. It resets at 00:00 UTC — or run it locally, it's one command.");
+        } else if (r.status === 429) {
+          const ra = r.headers.get('Retry-After');
+          setError(
+            ra
+              ? `Rate limit reached. Try again in ${Math.ceil(parseInt(ra, 10) / 60)} min.`
+              : 'Rate limit reached. Try again later.',
+          );
         } else {
           setError(`Backend error ${r.status}`);
         }
@@ -311,7 +324,7 @@ export default function MissionClient({ mission }: { mission: Mission }) {
           )}
           {capacityCountdown !== null && (
             <span className="text-zinc-400">
-              Homelab at capacity — retrying in{' '}
+              At capacity — retrying in{' '}
               <span className="font-bold text-accent">{capacityCountdown}s</span>
             </span>
           )}

@@ -5,9 +5,14 @@
 agentdojo-live is a thin SPA in front of a tool-calling LLM agent harness.
 The visitor's browser opens an SSE stream to the backend's
 `/api/chat/stream` route. The backend runs the per-mission agent loop
-against a local Ollama instance (or a scripted mock for CI) and forwards
-every event — assistant text, tool call, tool result — back to the
-browser as a Server-Sent Event.
+against a model endpoint and forwards every event — assistant text, tool
+call, tool result — back to the browser as a Server-Sent Event.
+
+The model endpoint is any OpenAI-compatible API: a local Ollama daemon, a
+hosted gateway, or the deterministic mock provider that CI runs. Ollama and
+hosted providers share one implementation, so the missions do not know which
+is behind them — the attacks are properties of the agent architecture, not of
+a particular model.
 
 Each mission ships a pluggable `solve_check(event, state, session_id, mission)`
 callback that the loop invokes after every event; when it returns `True`,
@@ -101,8 +106,18 @@ visitor browser ──► /api/chat/stream  (SSE)
 ## Performance / scaling notes
 
 - A single backend pod handles many concurrent sessions because the loop is `async` and tool calls do not block.
-- The bottleneck is the Ollama instance. Default budget assumes a single-GPU host serving the pinned `qwen3:8b` at ~30 tok/s.
+- The bottleneck is the model endpoint. On a single-GPU host serving the pinned
+  `qwen3:8b` at ~30 tok/s, that is the binding constraint; against a hosted API
+  it is your budget instead.
 - A global concurrency cap (`MAX_CONCURRENT_LLM`, default 3) bounds simultaneous
   inferences; requests beyond the cap get a 503 + `Retry-After` and the
-  frontend queues with a visible countdown.
+  frontend queues with a visible countdown. Size it to the backend — 3 suits one
+  GPU and is needlessly low for a hosted API.
 - Rate limit defaults to 50 LLM calls/IP/hour. Tune via `RATE_LIMIT_PER_HOUR`.
+- `DAILY_LLM_CALL_CAP` bounds total calls per UTC day. Per-IP limits bound one
+  visitor; on an unauthenticated endpoint they do not bound spend, because the
+  number of distinct source IPs is not something the app controls.
+- Client IP for rate limiting comes from `TRUSTED_CLIENT_IP_HEADER` (empty by
+  default → socket peer). `X-Forwarded-For` is never trusted: it is
+  client-supplied, so honouring it lets a caller mint a fresh bucket per
+  request. See `app/client_ip.py`.
