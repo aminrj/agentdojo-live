@@ -23,8 +23,6 @@ hijacked it and the one control that would have stopped it.
        ![Mission 01: the agent exfiltrates a report it was told to protect](docs/assets/mission-01-solve.gif)
      ──────────────────────────────────────────────────────────────────────── -->
 
-> **[ demo GIF goes here — see the comment in this file for what to capture ]**
-
 ## Run it — one command, no GPU, no API key
 
 ```bash
