@@ -54,9 +54,18 @@ class LLMProvider(Protocol):
 class OpenAICompatibleProvider:
     """Any endpoint implementing OpenAI chat-completions with tool calling."""
 
-    def __init__(self, base_url: str, api_key: str, model: str) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        extra_body: dict[str, Any] | None = None,
+    ) -> None:
         self._client = AsyncOpenAI(base_url=base_url, api_key=api_key)
         self._model = model
+        # Non-standard fields merged into the request body (e.g. Ollama's
+        # ``think: false``). Only for endpoints known to accept them.
+        self._extra_body = extra_body or None
 
     async def chat(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
@@ -67,6 +76,7 @@ class OpenAICompatibleProvider:
             tools=tools,
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
+            extra_body=self._extra_body,
         )
         choice = resp.choices[0]
         msg = choice.message
@@ -334,8 +344,14 @@ class MockProvider:
 def get_provider() -> LLMProvider:
     if settings.llm_provider == "mock":
         return MockProvider()
+    # Ollama's OpenAI-compatible endpoint accepts a top-level ``think`` flag;
+    # a real OpenAI endpoint would reject it, so only send it for ollama.
+    extra_body: dict[str, Any] | None = None
+    if settings.llm_provider == "ollama" and settings.ollama_disable_thinking:
+        extra_body = {"think": False}
     return OpenAICompatibleProvider(
         base_url=settings.resolved_llm_base_url,
         api_key=settings.resolved_llm_api_key,
         model=settings.resolved_llm_model,
+        extra_body=extra_body,
     )
